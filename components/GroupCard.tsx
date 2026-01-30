@@ -1,10 +1,10 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Group } from '@/types';
 import Colors from '@/constants/colors';
-import { Users, MapPin, Clock, MessageCircle } from 'lucide-react-native';
+import { Users, MapPin, Clock, MessageCircle, User } from 'lucide-react-native';
 
 type GroupCardProps = {
   group: Group;
@@ -17,7 +17,7 @@ type GroupCardProps = {
 
 export default function GroupCard({ group, onJoinGroup, showJoinButton = true, onPress, currentUserId, isMember }: GroupCardProps) {
   const router = useRouter();
-  
+
   const handlePress = () => {
     if (onPress) onPress();
   };
@@ -30,7 +30,7 @@ export default function GroupCard({ group, onJoinGroup, showJoinButton = true, o
 
   // Helper function to get mood style
   const getMoodStyle = (mood: string) => {
-    switch(mood) {
+    switch (mood) {
       case 'coffee':
         return styles.moodcoffee;
       case 'food':
@@ -53,12 +53,12 @@ export default function GroupCard({ group, onJoinGroup, showJoinButton = true, o
     const now = new Date();
     const expiry = new Date(group.expiresAt);
     const diff = expiry.getTime() - now.getTime();
-    
+
     if (diff <= 0) return 'Expired';
-    
+
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}m left`;
     } else {
@@ -69,7 +69,7 @@ export default function GroupCard({ group, onJoinGroup, showJoinButton = true, o
   const isFull = group.members.length >= group.maxMembers;
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.container}
       onPress={handlePress}
       activeOpacity={0.7}
@@ -86,7 +86,7 @@ export default function GroupCard({ group, onJoinGroup, showJoinButton = true, o
         </View>
 
         <Text style={styles.groupName}>{group.name}</Text>
-        
+
         <View style={styles.detailsContainer}>
           <View style={styles.detail}>
             <Users size={14} color={Colors.darkGray} />
@@ -94,7 +94,7 @@ export default function GroupCard({ group, onJoinGroup, showJoinButton = true, o
               {group.members.length}/{group.maxMembers} people
             </Text>
           </View>
-          
+
           <View style={styles.detail}>
             <MapPin size={14} color={Colors.darkGray} />
             <Text style={styles.detailText}>
@@ -117,9 +117,11 @@ export default function GroupCard({ group, onJoinGroup, showJoinButton = true, o
           <View style={styles.memberAvatars}>
             {group.members.slice(0, 4).map((member, index) => (
               <View key={member.id} style={[styles.memberAvatar, { zIndex: 4 - index }]}>
-                <Text style={styles.memberInitial}>
-                  {member.name.charAt(0).toUpperCase()}
-                </Text>
+                {member.avatar ? (
+                  <Image source={{ uri: member.avatar }} style={styles.avatarImage} />
+                ) : (
+                  <User size={16} color="#A0A0A0" strokeWidth={2} />
+                )}
               </View>
             ))}
             {group.members.length > 4 && (
@@ -245,12 +247,17 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#EFEFEF',
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: -8,
     borderWidth: 2,
     borderColor: Colors.white,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   memberInitial: {
     fontSize: 12,

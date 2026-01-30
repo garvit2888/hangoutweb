@@ -9,7 +9,7 @@ import { useGroupStore } from '@/store/groupStore';
 import { useUserStore } from '@/store/userStore';
 import { useChatStore } from '@/store/chatStore';
 import { GroupMessage } from '@/types';
-import { Send, ArrowLeft, Flag, LogOut, X, Plus, Camera, ImageIcon } from 'lucide-react-native';
+import { Send, ArrowLeft, Flag, LogOut, X, Plus, Camera, ImageIcon, User } from 'lucide-react-native';
 import { sendMessage, subscribeToMessages, setTypingStatus, subscribeToTypingStatus } from '@/services/chatService';
 import { uploadImage, uploadChatImage } from '@/services/storageService';
 import { leaveActivity as leaveActivityFirestore } from '@/services/activityService';
@@ -868,12 +868,18 @@ export default function GroupChatScreen() {
               style={styles.headerInfo}
               onPress={() => !activityExpired && router.push(`/group-details/${group.id}`)}
             >
-              <Image
-                source={{ uri: group.groupAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(group.name)}&background=random` }}
-                style={styles.groupAvatar}
-                contentFit="cover"
-                transition={200}
-              />
+              {group.groupAvatar ? (
+                <Image
+                  source={{ uri: group.groupAvatar }}
+                  style={styles.groupAvatar}
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : (
+                <View style={[styles.groupAvatar, styles.defaultGroupAvatar]}>
+                  <User size={20} color="#A0A0A0" strokeWidth={2} />
+                </View>
+              )}
               <View style={styles.headerTextContainer}>
                 <Text style={styles.groupName}>{group.name}</Text>
                 {!activityExpired && (
@@ -1095,6 +1101,7 @@ const styles = StyleSheet.create({
   backButton: { marginRight: 12 },
   headerInfo: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   groupAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 2, borderColor: 'rgba(255, 255, 255, 0.2)' },
+  defaultGroupAvatar: { backgroundColor: '#EFEFEF', justifyContent: 'center', alignItems: 'center' },
   headerTextContainer: { flex: 1 },
   groupName: { fontSize: 18, fontWeight: 'bold', color: Colors.white },
   memberCount: { fontSize: 12, color: Colors.secondary, marginTop: 2 },

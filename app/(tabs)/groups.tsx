@@ -10,7 +10,7 @@ import { useGroupStore } from '@/store/groupStore';
 import { useUserStore } from '@/store/userStore';
 import { Group } from '@/types';
 import { mockGroups } from '@/constants/mockData';
-import { Plus, Map, Settings, Users as UsersIcon } from 'lucide-react-native';
+import { Plus, Map, Settings, Users as UsersIcon, User } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useChatStore } from '@/store/chatStore';
@@ -21,7 +21,7 @@ import EdgeBubbles from '@/components/EdgeBubbles';
 // helper to compute age if dob exists
 const getAge = (dob?: string): string => {
   if (!dob) return '—';
-  
+
   try {
     // Handle DD/MM/YYYY format (from onboarding)
     if (dob.includes('/')) {
@@ -30,52 +30,52 @@ const getAge = (dob?: string): string => {
         const day = parseInt(parts[0], 10);
         const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
         const year = parseInt(parts[2], 10);
-        
+
         if (isNaN(day) || isNaN(month) || isNaN(year)) {
           return '—';
         }
-        
+
         const d = new Date(year, month, day);
         if (isNaN(d.getTime())) {
           return '—';
         }
-        
+
         const now = new Date();
         let age = now.getFullYear() - d.getFullYear();
         const m = now.getMonth() - d.getMonth();
-        
+
         // Adjust age if birthday hasn't occurred this year
         if (m < 0 || (m === 0 && now.getDate() < d.getDate())) {
           age--;
         }
-        
+
         // Validate age is reasonable (between 0 and 150)
         if (age < 0 || age > 150) {
           return '—';
         }
-        
+
         return String(age);
       }
     }
-    
+
     // Try parsing as ISO date string (fallback)
     const d = new Date(dob);
     if (isNaN(d.getTime())) {
       return '—';
     }
-    
+
     const now = new Date();
     let age = now.getFullYear() - d.getFullYear();
     const m = now.getMonth() - d.getMonth();
-    
+
     if (m < 0 || (m === 0 && now.getDate() < d.getDate())) {
       age--;
     }
-    
+
     if (age < 0 || age > 150) {
       return '—';
     }
-    
+
     return String(age);
   } catch (error) {
     console.error('❌ Error calculating age:', error, 'DOB:', dob);
@@ -153,7 +153,7 @@ export default function GroupsScreen() {
                 id: group.chatId,
                 userId: group.id,
                 name: group.name,
-                avatar: group.groupAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(group.name),
+                avatar: group.groupAvatar || '',
                 lastMessage: '',
                 timestamp: new Date().toISOString(),
                 unread: 0,
@@ -193,7 +193,7 @@ export default function GroupsScreen() {
                 id: group.chatId,
                 userId: group.id,
                 name: group.name,
-                avatar: group.groupAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(group.name),
+                avatar: group.groupAvatar || '',
                 lastMessage: '',
                 timestamp: new Date().toISOString(),
                 unread: 0,
@@ -279,10 +279,16 @@ export default function GroupsScreen() {
                   opacity: detailAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
                   transform: [{ translateY: detailAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
                 }}>
-                  <Image
-                    source={{ uri: m.avatar }}
-                    style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' }}
-                  />
+                  {m.avatar ? (
+                    <Image
+                      source={{ uri: m.avatar }}
+                      style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' }}
+                    />
+                  ) : (
+                    <View style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: '#EFEFEF', justifyContent: 'center', alignItems: 'center' }}>
+                      <User size={20} color="#A0A0A0" strokeWidth={2} />
+                    </View>
+                  )}
                   <Text style={{ color: Colors.white, fontSize: 15, fontWeight: '600', flex: 1 }}>{m.name}</Text>
                   <Text style={{ color: Colors.secondary, fontWeight: '700' }}>{getAge((m as any).dateOfBirth)}</Text>
                 </Animated.View>
@@ -364,8 +370,8 @@ export default function GroupsScreen() {
         style={styles.container}
       >
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.mapButton} 
+          <TouchableOpacity
+            style={styles.mapButton}
             onPress={() => setShowMapView(true)}
           >
             <Map size={20} color={Colors.white} />
@@ -378,8 +384,8 @@ export default function GroupsScreen() {
 
         <View style={styles.filtersContainer}>
           <Text style={styles.filtersTitle}>Filter by mood:</Text>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filtersScroll}
           >
@@ -397,7 +403,7 @@ export default function GroupsScreen() {
           </ScrollView>
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -406,7 +412,7 @@ export default function GroupsScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>No groups found</Text>
               <Text style={styles.emptySubtitle}>
-                {selectedMood === 'all' 
+                {selectedMood === 'all'
                   ? 'Create a group or check back later for new meetups'
                   : `No ${selectedMood} groups available right now`
                 }
@@ -433,9 +439,9 @@ export default function GroupsScreen() {
           )}
         </ScrollView>
 
-        <GroupCreationModal 
-          visible={showCreateModal} 
-          onClose={() => setShowCreateModal(false)} 
+        <GroupCreationModal
+          visible={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
         />
 
         {showMapView && (

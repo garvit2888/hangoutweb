@@ -2,7 +2,7 @@ export const mockUsers = [
   {
     id: '1',
     name: 'Alex Kim',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=200&auto=format',
+    avatar: '',
     location: { latitude: 37.7858, longitude: -122.4064 },
     distance: 0.3,
     mood: 'coffee',
@@ -62,7 +62,7 @@ export const mockGroups = [
       {
         id: '1',
         name: 'Alex Kim',
-        avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=200&auto=format',
+        avatar: '',
         location: { latitude: 37.7858, longitude: -122.4064 },
         distance: 0.3,
         mood: 'coffee',
@@ -200,7 +200,7 @@ export const mockChats = [
     id: '1',
     userId: '1',
     name: 'Alex Kim',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=200&auto=format',
+    avatar: '',
     lastMessage: "Hey, wanna grab coffee?",
     timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
     unread: 2,
