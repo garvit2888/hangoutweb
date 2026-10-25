@@ -3,7 +3,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChatPreview } from '@/types';
 import Colors from '@/constants/colors';
-import { User } from 'lucide-react-native';
+import InstagramDefaultAvatar from '@/components/InstagramDefaultAvatar';
 
 type ChatPreviewCardProps = {
   chat: ChatPreview;
@@ -33,6 +33,14 @@ export default function ChatPreviewCard({ chat }: ChatPreviewCardProps) {
     return `${Math.floor(diffMins / 1440)}d`;
   };
 
+  const isCustomAvatar = Boolean(
+    chat.avatar &&
+    chat.avatar.trim() !== '' &&
+    !chat.avatar.includes('ui-avatars.com') &&
+    !chat.avatar.includes('default') &&
+    !chat.avatar.includes('placeholder')
+  );
+
   return (
     <TouchableOpacity
       style={styles.container}
@@ -40,12 +48,10 @@ export default function ChatPreviewCard({ chat }: ChatPreviewCardProps) {
       activeOpacity={0.7}
     >
       <View style={styles.avatarContainer}>
-        {chat.avatar ? (
+        {isCustomAvatar ? (
           <Image source={{ uri: chat.avatar }} style={styles.avatar} />
         ) : (
-          <View style={[styles.avatar, styles.defaultAvatar]}>
-            <User size={24} color="#A0A0A0" strokeWidth={2} />
-          </View>
+          <InstagramDefaultAvatar size={50} />
         )}
       </View>
 

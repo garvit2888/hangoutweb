@@ -27,9 +27,17 @@ export const uploadImage = async (
     const response = await fetch(uri);
     const blob = await response.blob();
 
-    // Upload to Firebase Storage
-    console.log('📤 Uploading blob to Firebase...');
-    await uploadBytes(storageRef, blob);
+    // Determine contentType metadata
+    const contentType =
+      blob.type && blob.type.startsWith('image/')
+        ? blob.type
+        : uri.toLowerCase().endsWith('.png')
+        ? 'image/png'
+        : 'image/jpeg';
+
+    // Upload to Firebase Storage with explicit metadata
+    console.log(`📤 Uploading blob (${contentType}) to Firebase...`);
+    await uploadBytes(storageRef, blob, { contentType });
 
     // Get download URL
     const downloadURL = await getDownloadURL(storageRef);

@@ -409,6 +409,39 @@ export default function ActivityCreateModal({ visible, onClose }: { visible: boo
                 />
               )}
 
+              {showTimePicker && Platform.OS === 'web' && (
+                <View style={styles.iosTimePickerContainer}>
+                  <input
+                    type="time"
+                    value={`${String(selectedDate.getHours()).padStart(2, '0')}:${String(selectedDate.getMinutes()).padStart(2, '0')}`}
+                    onChange={(e: any) => {
+                      if (e.target?.value) {
+                        const [hours, minutes] = e.target.value.split(':').map(Number);
+                        const newDate = new Date(selectedDate);
+                        newDate.setHours(hours, minutes);
+                        setSelectedDate(newDate);
+                      }
+                    }}
+                    style={{
+                      padding: '12px 16px',
+                      fontSize: 18,
+                      borderRadius: 10,
+                      border: '1px solid #374151',
+                      backgroundColor: '#1F2937',
+                      color: '#F9FAFB',
+                      outline: 'none',
+                      margin: '12px 0',
+                    }}
+                  />
+                  <TouchableOpacity 
+                    style={styles.doneButton} 
+                    onPress={() => setShowTimePicker(false)}
+                  >
+                    <Text style={styles.doneButtonText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Max People */}
               <Text style={styles.label}>Max People</Text>
               <View style={styles.maxRow}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, Alert, ScrollView, Platform } from 'react-native';
-import MapView, { Marker, PROVIDER_APPLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_APPLE, PROVIDER_GOOGLE } from '@/components/map';
 import * as Location from 'expo-location';
 import Colors from '@/constants/colors';
 import { X, MapPin, Search } from 'lucide-react-native';
@@ -167,7 +167,7 @@ export default function MapLocationPicker({ visible, onClose, onSelectLocation }
 
         {/* Map */}
         <MapView
-          provider={PROVIDER_APPLE}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_APPLE}
           style={styles.map}
           region={region}
           onRegionChangeComplete={setRegion}

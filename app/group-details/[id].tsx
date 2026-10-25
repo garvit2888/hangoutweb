@@ -14,6 +14,7 @@ import { useChatStore } from '@/store/chatStore';
 import { ArrowLeft, Camera, MapPin, Clock } from 'lucide-react-native';
 import { sendMessage } from '@/services/chatService';
 import { Group } from '@/types';
+import { InstagramDefaultAvatar } from '@/components/InstagramDefaultAvatar';
 
 export const options = { headerShown: false };
 
@@ -328,10 +329,14 @@ export default function GroupDetailsScreen() {
               style={styles.avatarContainer}
               disabled={!isCreator}
             >
-              <Image
-                source={{ uri: group.groupAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(group.name)}&size=200&background=random` }}
-                style={styles.groupAvatar}
-              />
+              {group.groupAvatar && !group.groupAvatar.includes('ui-avatars.com') ? (
+                <Image
+                  source={{ uri: group.groupAvatar }}
+                  style={styles.groupAvatar}
+                />
+              ) : (
+                <InstagramDefaultAvatar size={120} style={styles.groupAvatar} />
+              )}
               {isCreator && (
                 <View style={styles.cameraIconContainer}>
                   <Camera size={20} color={Colors.white} />

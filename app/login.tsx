@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import Colors from '@/constants/colors';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { Eye, EyeOff, AlertCircle } from 'lucide-react-native';
 import { useUserStore } from '@/store/userStore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithCredential, OAuthProvider } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -33,6 +33,22 @@ export default function LoginScreen() {
   const [isStoreLoaded, setIsStoreLoaded] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
+
+  const showAlert = (title: string, message: string) => {
+    setAlertConfig({ visible: true, title, message });
+    if (Platform.OS !== 'web') {
+      Alert.alert(title, message);
+    }
+  };
 
   // Google Sign-In Configuration
   // Detect if running in Expo Go (development) or standalone build (production)
@@ -71,7 +87,7 @@ export default function LoginScreen() {
       handleGoogleSignIn(id_token);
     } else if (response?.type === 'error') {
       console.error('❌ Google Sign-In Error:', response.error);
-      Alert.alert(
+      showAlert(
         'Sign-In Error',
         `Google sign-in failed: ${response.error?.message || 'Unknown error'}. Please check that redirect URIs are configured in Google Cloud Console.`
       );
@@ -174,33 +190,33 @@ export default function LoginScreen() {
   const validateForm = () => {
     // Check for leading/trailing spaces in email
     if (formData.email !== formData.email.trim()) {
-      Alert.alert('Invalid Input', 'Email cannot contain leading or trailing spaces.');
+      showAlert('Invalid Input', 'Email cannot contain leading or trailing spaces.');
       return false;
     }
 
     const email = formData.email.trim();
     // Check for leading/trailing spaces in password
     if (formData.password !== formData.password.trim()) {
-      Alert.alert('Invalid Input', 'Password cannot contain leading or trailing spaces.');
+      showAlert('Invalid Input', 'Password cannot contain leading or trailing spaces.');
       return false;
     }
     const password = formData.password;
 
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all required fields.');
+      showAlert('Required Fields', 'Please fill in all required fields.');
       return false;
     }
     if (!/\S+@\S+\.\S+/.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address.');
+      showAlert('Invalid Email', 'Please enter a valid email address.');
       return false;
     }
     if (!isLogin && password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match.');
+      showAlert('Password Mismatch', 'Passwords do not match.');
       return false;
     }
     if (!isLogin) {
       if (!isStrongPassword(password)) {
-        Alert.alert(
+        showAlert(
           'Weak Password',
           'Password must be at least 7 characters long, include a letter, a number, a special character, and cannot contain spaces.'
         );
@@ -337,7 +353,7 @@ export default function LoginScreen() {
         if (isLogin && (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-login-credentials')) {
           alertTitle = 'Login Failed';
         }
-        Alert.alert(alertTitle, errorMessage);
+        showAlert(alertTitle, errorMessage);
       }
     } finally {
       setIsLoading(false);
@@ -346,16 +362,15 @@ export default function LoginScreen() {
 
   const handleForgotPassword = async () => {
     if (!formData.email) {
-      Alert.alert('Error', 'Please enter your email address first.');
+      showAlert('Error', 'Please enter your email address first.');
       return;
     }
 
     try {
       await sendPasswordResetEmail(auth, formData.email);
-      Alert.alert(
+      showAlert(
         'Password Reset',
-        `A password reset link has been sent to ${formData.email}. Please check your email.`,
-        [{ text: 'OK' }]
+        `A password reset link has been sent to ${formData.email}. Please check your email.`
       );
     } catch (error: any) {
       console.error('Password reset error:', error);
@@ -368,7 +383,7 @@ export default function LoginScreen() {
         errorMessage = 'Invalid email address.';
       }
 
-      Alert.alert('Error', errorMessage);
+      showAlert('Error', errorMessage);
     }
   };
 
@@ -431,7 +446,7 @@ export default function LoginScreen() {
         errorMessage = 'Network error. Please check your internet connection.';
       }
 
-      Alert.alert('Error', errorMessage);
+      showAlert('Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -538,6 +553,30 @@ export default function LoginScreen() {
         </View>
 
       </View>
+
+      {/* Custom Alert Modal for Web & Cross-Platform */}
+      <Modal
+        visible={alertConfig.visible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.alertCard}>
+            <View style={styles.alertIconCircle}>
+              <AlertCircle size={28} color="#FF3B30" />
+            </View>
+            <Text style={styles.alertTitle}>{alertConfig.title}</Text>
+            <Text style={styles.alertMessage}>{alertConfig.message}</Text>
+            <TouchableOpacity
+              style={styles.alertButton}
+              onPress={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+            >
+              <Text style={styles.alertButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -547,13 +586,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 16,
   },
   content: {
-    width: '85%',
-    padding: 20,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: '100%',
+    maxWidth: 440,
+    padding: 28,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     alignItems: 'center',
+    alignSelf: 'center',
   },
   title: {
     fontSize: 28,
@@ -663,5 +705,62 @@ const styles = StyleSheet.create({
     color: Colors.secondary,
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  alertCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#1C162E',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  alertIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 59, 48, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  alertTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  alertButton: {
+    width: '100%',
+    backgroundColor: '#8A2BE2',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  alertButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

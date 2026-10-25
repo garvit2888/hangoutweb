@@ -17,6 +17,7 @@ import { getDoc, doc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Group } from '@/types';
 import ReportModal from '@/components/ReportModal';
+import InstagramDefaultAvatar from '@/components/InstagramDefaultAvatar';
 // Chat messages sync via Firestore
 
 export const options = { headerShown: false };
@@ -868,7 +869,7 @@ export default function GroupChatScreen() {
               style={styles.headerInfo}
               onPress={() => !activityExpired && router.push(`/group-details/${group.id}`)}
             >
-              {group.groupAvatar ? (
+              {group.groupAvatar && !group.groupAvatar.includes('ui-avatars.com') ? (
                 <Image
                   source={{ uri: group.groupAvatar }}
                   style={styles.groupAvatar}
@@ -876,8 +877,8 @@ export default function GroupChatScreen() {
                   transition={200}
                 />
               ) : (
-                <View style={[styles.groupAvatar, styles.defaultGroupAvatar]}>
-                  <User size={20} color="#A0A0A0" strokeWidth={2} />
+                <View style={styles.groupAvatarWrapper}>
+                  <InstagramDefaultAvatar size={40} />
                 </View>
               )}
               <View style={styles.headerTextContainer}>
@@ -1101,6 +1102,7 @@ const styles = StyleSheet.create({
   backButton: { marginRight: 12 },
   headerInfo: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   groupAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 2, borderColor: 'rgba(255, 255, 255, 0.2)' },
+  groupAvatarWrapper: { marginRight: 12 },
   defaultGroupAvatar: { backgroundColor: '#EFEFEF', justifyContent: 'center', alignItems: 'center' },
   headerTextContainer: { flex: 1 },
   groupName: { fontSize: 18, fontWeight: 'bold', color: Colors.white },

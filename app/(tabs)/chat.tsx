@@ -9,14 +9,15 @@ import { useGroupStore } from '@/store/groupStore';
 import { useUserStore } from '@/store/userStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { subscribeToMessages } from '@/services/chatService';
-import { useIsFocused } from '@react-navigation/native';
+import { usePathname } from 'expo-router';
 
 export default function ChatScreen() {
   const { chats, upsertChatPreview, incrementUnread, activeChat } = useChatStore();
   const { activeGroups } = useGroupStore();
   const { profile, loginEmail } = useUserStore();
   const { addNotification } = useNotificationStore();
-  const isChatTabFocused = useIsFocused();
+  const pathname = usePathname();
+  const isChatTabFocused = pathname.includes('chat');
   const currentUserId = profile?.uid || loginEmail || 'current_user_id';
 
   // Track last known unread counts to prevent race conditions

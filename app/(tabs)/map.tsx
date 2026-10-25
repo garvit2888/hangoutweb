@@ -16,7 +16,7 @@ import ActivityDetailsModal from '@/components/ActivityDetailsModal';
 import * as Location from 'expo-location';
 import { subscribeToActivities, getActiveActivities, joinActivity as joinActivityFirestore, leaveActivity as leaveActivityFirestore, deleteActivity } from '@/services/activityService';
 
-import MapView, { Marker, PROVIDER_APPLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_APPLE, PROVIDER_GOOGLE } from '@/components/map';
 
 const moodEmoji: Record<string, string> = {
   coffee: '☕️',
@@ -95,7 +95,7 @@ const getAge = (dob?: string): number | undefined => {
 export default function MapTab() {
   const router = useRouter();
   const { activeGroups, setActiveGroups, clearActiveGroups, joinGroup, currentUserActiveGroupId } = useGroupStore();
-  const { loginEmail, profile, maxAgeDifference, sos, requestSOSModal } = useUserStore();
+  const { loginEmail, profile, maxAgeDifference, sos, requestSOSModal, location: storedLocation, setLocation: setStoreLocation } = useUserStore();
   const { upsertChatPreview, saveUserChatsToFirestore } = useChatStore();
   const { unreadCount, addNotification, markAllAsRead } = useNotificationStore();
 
@@ -108,11 +108,14 @@ export default function MapTab() {
   const [showDetails, setShowDetails] = useState(false);
   const [showListView, setShowListView] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(
+    () => storedLocation || null
+  );
   const [initialRegion, setInitialRegion] = useState({
-    latitude: 37.7858,
-    longitude: -122.4064,
-    latitudeDelta: 0.06,
-    longitudeDelta: 0.06,
+    latitude: storedLocation?.latitude || 28.6139,
+    longitude: storedLocation?.longitude || 77.2090,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
   });
   const mapRef = useRef<MapView>(null);
 
@@ -380,45 +383,113 @@ export default function MapTab() {
     });
   }, [activeGroups, currentUserId]);
 
+  const fetchCurrentLocation = async (): Promise<{ latitude: number; longitude: number } | null> => {
+    // 1. Web: HTML5 Geolocation with IP-based fallback
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+      const webPos = await new Promise<{ latitude: number; longitude: number } | null>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            resolve({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+            });
+          },
+          async (err) => {
+            console.warn('HTML5 geolocation error:', err.message);
+            // Fallback: IP-based geolocation so user is never defaulted to a random US address
+            try {
+              const res = await fetch('https://ipapi.co/json/');
+              const data = await res.json();
+              if (data && typeof data.latitude === 'number' && typeof data.longitude === 'number') {
+                resolve({
+                  latitude: data.latitude,
+                  longitude: data.longitude,
+                });
+                return;
+              }
+            } catch (e) {
+              // Ignore IP fallback error
+            }
+            resolve(null);
+          },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        );
+      });
+
+      if (webPos) return webPos;
+    }
+
+    // 2. Native iOS & Android: expo-location
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        return {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        };
+      }
+    } catch (nativeErr) {
+      console.warn('Native Location error:', nativeErr);
+    }
+
+    return null;
+  };
+
   // Get user's current location on mount
   useEffect(() => {
+    let isMounted = true;
     (async () => {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const location = await Location.getCurrentPositionAsync({});
+        const coords = await fetchCurrentLocation();
+        if (coords && isMounted) {
+          setUserCoords(coords);
+          setStoreLocation(coords);
           const newRegion = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            latitudeDelta: 0.06,
-            longitudeDelta: 0.06,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
           };
           setInitialRegion(newRegion);
           mapRef.current?.animateToRegion(newRegion, 1000);
         }
       } catch (error) {
-        console.log('Error getting location:', error);
+        console.log('Error getting location on mount:', error);
       }
     })();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleMyLocation = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Please enable location permissions to use this feature.');
-        return;
+      const coords = await fetchCurrentLocation();
+      if (coords) {
+        setUserCoords(coords);
+        setStoreLocation(coords);
+        mapRef.current?.animateToRegion(
+          {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            latitudeDelta: 0.04,
+            longitudeDelta: 0.04,
+          },
+          1000
+        );
+      } else {
+        if (Platform.OS === 'web') {
+          window.alert('Please allow location permissions in your browser to center on your current position.');
+        } else {
+          Alert.alert('Permission Needed', 'Please enable location permissions in Settings to see your location.');
+        }
       }
-
-      const location = await Location.getCurrentPositionAsync({});
-      mapRef.current?.animateToRegion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      }, 1000);
     } catch (error) {
-      Alert.alert('Error', 'Could not get your location. Please try again.');
+      console.error('handleMyLocation error:', error);
     }
   };
 
@@ -757,7 +828,7 @@ export default function MapTab() {
           <View style={styles.mapContainer}>
             <MapView
               ref={mapRef}
-              provider={PROVIDER_APPLE}
+              provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_APPLE}
               style={{ flex: 1 }}
               initialRegion={initialRegion}
               showsUserLocation
@@ -823,6 +894,21 @@ export default function MapTab() {
                     </Marker>
                   );
                 })}
+
+              {/* Current User Location Marker */}
+              {userCoords && (
+                <Marker
+                  key="current-user-gps-marker"
+                  coordinate={userCoords}
+                  tracksViewChanges={false}
+                  title="Your Location"
+                >
+                  <View style={styles.userLocationMarkerContainer}>
+                    <View style={styles.userLocationHalo} />
+                    <View style={styles.userLocationDot} />
+                  </View>
+                </Marker>
+              )}
             </MapView>
 
             {/* List View Button */}
@@ -1015,4 +1101,32 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   emptyStateText: { fontSize: 18, fontWeight: '700', color: Colors.darkGray, marginBottom: 8 },
   emptyStateSubtext: { fontSize: 14, color: Colors.darkGray },
+  userLocationMarkerContainer: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userLocationHalo: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(66, 133, 244, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 133, 244, 0.45)',
+  },
+  userLocationDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#4285F4',
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+    elevation: 4,
+  },
 });

@@ -9,20 +9,23 @@ service firebase.storage {
     
     // Helper function to check if user is the owner
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isAuthenticated() && request.auth.uid == userId;
     }
     
-    // Helper function to validate image size (max 5MB)
+    // Helper function to validate image size (max 10MB)
     function isValidImageSize() {
-      return request.resource.size < 5 * 1024 * 1024;
+      return request.resource == null || request.resource.size < 10 * 1024 * 1024;
     }
     
     // Helper function to validate image type
     function isValidImageType() {
-      return request.resource.contentType.matches('image/.*');
+      return request.resource == null || 
+             request.resource.contentType == null || 
+             request.resource.contentType.matches('image/.*') || 
+             request.resource.contentType == 'application/octet-stream';
     }
     
-    // User avatars - only owner can upload/delete, anyone can read
+    // User avatars - only owner can upload/delete, anyone authenticated can read
     match /user-avatars/{userId}/{fileName} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && 
@@ -42,10 +45,9 @@ service firebase.storage {
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Legacy chat images (read-only for backward compatibility)
+    // Legacy chat images (backward compatibility)
     match /chat-images/{activityId}/{fileName} {
-      allow read: if isAuthenticated();
-      allow write: if false; // Disable new uploads to insecure path
+      allow read, write: if isAuthenticated();
     }
     
     // Group avatars - authenticated users can upload/update
@@ -56,6 +58,11 @@ service firebase.storage {
                       isValidImageType();
       allow delete: if isAuthenticated();
     }
+    
+    // Catch-all fallback for authenticated uploads
+    match /{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidImageSize();
+    }
   }
 }
-

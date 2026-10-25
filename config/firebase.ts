@@ -15,13 +15,24 @@ const firebaseConfig = {
     appId: "1:730853963213:web:1c29bcf96e78213c028084"
   };
 
+import { Platform } from 'react-native';
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Authentication with AsyncStorage persistence
-const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage)
-});
+// Initialize Firebase Authentication with platform-appropriate persistence
+let auth: any;
+if (Platform.OS === 'web') {
+  auth = getAuth(app);
+} else {
+  try {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage)
+    });
+  } catch (e) {
+    auth = getAuth(app);
+  }
+}
 
 // Initialize Firestore
 const db = getFirestore(app);

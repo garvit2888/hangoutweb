@@ -6,7 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import * as Location from 'expo-location';
-import { Alert, Linking, AppState, AppStateStatus } from 'react-native';
+import { Alert, Linking, AppState, AppStateStatus, Platform, View, StyleSheet, useWindowDimensions } from 'react-native';
 import { useUserStore } from '@/store/userStore';
 import { useGroupStore } from '@/store/groupStore';
 import ActivityStartedModal from '@/components/ActivityStartedModal';
@@ -63,6 +63,9 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isMobile = windowWidth <= 520;
+
   // Initialize Firebase auth listener
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -438,6 +441,7 @@ function RootLayoutNav() {
     if (!user) return;
 
     const setupNotifications = async () => {
+      if (Platform.OS === 'web') return;
       // Request permissions
       await requestNotificationPermissions();
 
@@ -479,7 +483,7 @@ function RootLayoutNav() {
   }
 
 
-  return (
+  const mainContent = (
     <>
       <Stack
         screenOptions={{
@@ -524,4 +528,23 @@ function RootLayoutNav() {
         )}
     </>
   );
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={layoutStyles.webRoot}>
+        {mainContent}
+      </View>
+    );
+  }
+
+  return mainContent;
 }
+
+const layoutStyles = StyleSheet.create({
+  webRoot: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#0B0E17',
+  },
+});

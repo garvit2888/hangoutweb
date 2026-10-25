@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, SafeAreaView, Alert } from 'react-native';
-import MapView, { Marker, PROVIDER_APPLE } from 'react-native-maps';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, SafeAreaView, Alert, Platform } from 'react-native';
+import MapView, { Marker, PROVIDER_APPLE, PROVIDER_GOOGLE } from '@/components/map';
 import Colors from '@/constants/colors';
 import { Check, X } from 'lucide-react-native';
 
@@ -25,12 +25,27 @@ export default function PinPlacementModal({
   const [confirming, setConfirming] = useState(false);
   const mapRef = useRef<MapView>(null);
 
+  // Keep pinLocation synchronized with initialLocation when modal opens
+  React.useEffect(() => {
+    if (initialLocation && Number.isFinite(initialLocation.latitude) && Number.isFinite(initialLocation.longitude)) {
+      setPinLocation(initialLocation);
+      mapRef.current?.animateToRegion({
+        latitude: initialLocation.latitude,
+        longitude: initialLocation.longitude,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      }, 400);
+    }
+  }, [initialLocation?.latitude, initialLocation?.longitude, visible]);
+
   console.log('PinPlacementModal render, visible:', visible);
   console.log('PinPlacementModal props:', { emoji, initialLocation, activityName });
 
   const handleMapPress = (event: any) => {
-    const { coordinate } = event.nativeEvent;
-    setPinLocation(coordinate);
+    const coord = event?.nativeEvent?.coordinate;
+    if (coord && Number.isFinite(coord.latitude) && Number.isFinite(coord.longitude)) {
+      setPinLocation(coord);
+    }
   };
 
   const handleConfirm = () => {
@@ -49,7 +64,7 @@ export default function PinPlacementModal({
           </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Place Your Activity Pin</Text>
-            <Text style={styles.headerSubtitle}>Tap to adjust location</Text>
+            <Text style={styles.headerSubtitle}>Tap anywhere to adjust location</Text>
           </View>
           <TouchableOpacity onPress={handleConfirm} style={[styles.confirmButton, confirming && styles.disabled]} disabled={confirming}>
             {confirming ? (
@@ -63,30 +78,42 @@ export default function PinPlacementModal({
         {/* Map */}
         <MapView
           ref={mapRef}
-          provider={PROVIDER_APPLE}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_APPLE}
           style={styles.map}
+          region={{
+            latitude: pinLocation.latitude,
+            longitude: pinLocation.longitude,
+            latitudeDelta: 0.008,
+            longitudeDelta: 0.008,
+          }}
           initialRegion={{
             latitude: initialLocation.latitude,
             longitude: initialLocation.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
+            latitudeDelta: 0.008,
+            longitudeDelta: 0.008,
           }}
           onPress={handleMapPress}
           showsUserLocation
         >
-          {/* Draggable Pin */}
-          <Marker
-            coordinate={pinLocation}
-            draggable
-            onDragEnd={(e) => setPinLocation(e.nativeEvent.coordinate)}
-          >
-            <View style={styles.pinContainer}>
-              <View style={styles.emojiPin}>
-                <Text style={styles.emojiText}>{emoji}</Text>
+          {/* Default Placed Pin */}
+          {pinLocation && Number.isFinite(pinLocation.latitude) && Number.isFinite(pinLocation.longitude) && (
+            <Marker
+              coordinate={pinLocation}
+              draggable
+              onDragEnd={(e) => {
+                if (e?.nativeEvent?.coordinate) {
+                  setPinLocation(e.nativeEvent.coordinate);
+                }
+              }}
+            >
+              <View style={styles.pinContainer}>
+                <View style={styles.emojiPin}>
+                  <Text style={styles.emojiText}>{emoji || '📍'}</Text>
+                </View>
+                <View style={styles.pinShadow} />
               </View>
-              <View style={styles.pinShadow} />
-            </View>
-          </Marker>
+            </Marker>
+          )}
         </MapView>
 
         {/* Instructions */}
@@ -105,6 +132,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.primary,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',

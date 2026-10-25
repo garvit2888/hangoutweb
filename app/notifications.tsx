@@ -1,43 +1,65 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
-import { ArrowLeft, Bell, Clock, MapPin, Users, TrendingUp, MessageSquare } from 'lucide-react-native';
+import { ArrowLeft, Bell } from 'lucide-react-native';
 import { useNotificationStore } from '@/store/notificationStore';
-import { formatTimestamp, getNotificationEmoji } from '@/services/notificationService';
+import { Notification } from '@/services/notificationService';
+import InstagramDefaultAvatar from '@/components/InstagramDefaultAvatar';
 
-// Icon mapping for notification types
-const getNotificationIcon = (type: string) => {
-  switch (type) {
-    case 'new_message':
-      return MessageSquare;
-    case 'member_joined':
-    case 'member_left':
-      return Users;
-    case 'new_activity_nearby':
-      return MapPin;
-    case 'activity_starting_soon':
-      return Clock;
-    case 'activity_popular':
-      return TrendingUp;
-    default:
-      return Bell;
+/**
+ * Format relative time in Instagram compact format (e.g. "2h", "3d", "1w")
+ */
+const formatInstagramTime = (timestamp: string): string => {
+  const now = new Date();
+  const date = new Date(timestamp);
+  const diffInSeconds = Math.max(1, Math.floor((now.getTime() - date.getTime()) / 1000));
+
+  if (diffInSeconds < 60) {
+    return `${diffInSeconds}s`;
   }
+  const minutes = Math.floor(diffInSeconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return `${days}d`;
+  }
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) {
+    return `${weeks}w`;
+  }
+  const months = Math.floor(days / 30);
+  return `${months}mo`;
 };
+
+interface NotificationSection {
+  title: string;
+  data: Notification[];
+}
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { notifications, markAsRead, markAllAsRead, clearAllNotifications } = useNotificationStore();
+  const { notifications, markAsRead, clearAllNotifications } = useNotificationStore();
 
-  const handleNotificationPress = (notification: any) => {
-    // Mark as read when tapped
+  const handleNotificationPress = (notification: Notification) => {
     if (!notification.read) {
       markAsRead(notification.id);
     }
 
-    // Navigate based on notification type
     if (notification.activityId) {
       if (notification.type === 'new_message') {
         router.push(`/group-chat/${notification.activityId}`);
@@ -47,216 +69,266 @@ export default function NotificationsScreen() {
     }
   };
 
-  const handleClearAll = () => {
-    clearAllNotifications();
-  };
+  // Group notifications strictly into Instagram timeframe sections:
+  // Today, Yesterday, Last 7 days, Last 30 days, Earlier
+  const sections = useMemo<NotificationSection[]>(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+    const startOf7Days = startOfToday - 7 * 24 * 60 * 60 * 1000;
+    const startOf30Days = startOfToday - 30 * 24 * 60 * 60 * 1000;
+
+    const today: Notification[] = [];
+    const yesterday: Notification[] = [];
+    const last7Days: Notification[] = [];
+    const last30Days: Notification[] = [];
+    const earlier: Notification[] = [];
+
+    notifications.forEach((item) => {
+      const t = new Date(item.timestamp).getTime();
+      if (t >= startOfToday) {
+        today.push(item);
+      } else if (t >= startOfYesterday) {
+        yesterday.push(item);
+      } else if (t >= startOf7Days) {
+        last7Days.push(item);
+      } else if (t >= startOf30Days) {
+        last30Days.push(item);
+      } else {
+        earlier.push(item);
+      }
+    });
+
+    const groups: NotificationSection[] = [];
+    if (today.length > 0) groups.push({ title: 'Today', data: today });
+    if (yesterday.length > 0) groups.push({ title: 'Yesterday', data: yesterday });
+    if (last7Days.length > 0) groups.push({ title: 'Last 7 days', data: last7Days });
+    if (last30Days.length > 0) groups.push({ title: 'Last 30 days', data: last30Days });
+    if (earlier.length > 0) groups.push({ title: 'Earlier', data: earlier });
+
+    return groups;
+  }, [notifications]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.primary }}>
-      <LinearGradient colors={[Colors.primary, Colors.darkPurple]} style={styles.container}>
-        {/* Header */}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Instagram Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <ArrowLeft size={24} color={Colors.white} />
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <ArrowLeft size={24} color="#000000" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Notifications</Text>
-          <View style={{ width: 40 }} />
+          {notifications.length > 0 ? (
+            <TouchableOpacity
+              onPress={clearAllNotifications}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.clearText}>Clear all</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 44 }} />
+          )}
         </View>
 
         {/* Notifications List */}
-        <ScrollView 
-          style={styles.notificationsList}
+        <ScrollView
+          style={styles.list}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.notificationsContent}
+          contentContainerStyle={styles.listContent}
         >
           {notifications.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No notifications yet</Text>
-              <Text style={styles.emptySubtext}>You'll see notifications here when something new happens</Text>
+              <View style={styles.emptyIconCircle}>
+                <Bell size={38} color="#000000" />
+              </View>
+              <Text style={styles.emptyTitle}>No Notifications</Text>
+              <Text style={styles.emptySubtext}>
+                You will see activity updates, new messages, and member alerts here.
+              </Text>
             </View>
           ) : (
-            notifications.map((notification) => {
-              const IconComponent = getNotificationIcon(notification.type);
-              const emoji = getNotificationEmoji(notification.type, notification.activityEmoji);
-              
-              return (
-                <TouchableOpacity 
-                  key={notification.id} 
-                  style={styles.notificationItem}
-                  activeOpacity={0.7}
-                  onPress={() => handleNotificationPress(notification)}
-                >
-                  <View style={styles.notificationIcon}>
-                    <Text style={styles.notificationEmoji}>{emoji}</Text>
-                  </View>
-                  
-                  <View style={styles.notificationContent}>
-                    <View style={styles.notificationHeader}>
-                      <Text style={styles.notificationTitle}>{notification.title}</Text>
-                      <View style={styles.iconBadge}>
-                        <IconComponent size={14} color={Colors.secondary} />
-                      </View>
-                    </View>
-                    <Text style={styles.notificationDescription}>{notification.description}</Text>
-                    <Text style={styles.notificationTime}>{formatTimestamp(notification.timestamp)}</Text>
-                  </View>
+            sections.map((section) => (
+              <View key={section.title} style={styles.sectionBlock}>
+                <Text style={styles.sectionHeader}>{section.title}</Text>
+                {section.data.map((notification) => {
+                  const hasCustomAvatar = Boolean(
+                    (notification as any).avatar &&
+                      (notification as any).avatar.trim() !== '' &&
+                      !(notification as any).avatar.includes('ui-avatars.com')
+                  );
 
-                  {/* Unread Indicator */}
-                  {!notification.read && (
-                    <View style={styles.unreadDot} />
-                  )}
-                </TouchableOpacity>
-              );
-            })
+                  return (
+                    <TouchableOpacity
+                      key={notification.id}
+                      style={styles.notificationRow}
+                      activeOpacity={0.6}
+                      onPress={() => handleNotificationPress(notification)}
+                    >
+                      {/* Left Circular Avatar (Instagram style) */}
+                      <View style={styles.avatarWrapper}>
+                        {hasCustomAvatar ? (
+                          <Image
+                            source={{ uri: (notification as any).avatar }}
+                            style={styles.avatarImage}
+                          />
+                        ) : (
+                          <InstagramDefaultAvatar size={44} />
+                        )}
+                      </View>
+
+                      {/* Content (Inline text + time like Instagram) */}
+                      <View style={styles.textColumn}>
+                        <Text style={styles.inlineText} numberOfLines={3}>
+                          <Text style={styles.titleText}>{notification.title} </Text>
+                          <Text style={styles.descText}>{notification.description} </Text>
+                          <Text style={styles.timeText}>
+                            {formatInstagramTime(notification.timestamp)}
+                          </Text>
+                        </Text>
+                      </View>
+
+                      {/* Unread Blue Dot Indicator */}
+                      {!notification.read && <View style={styles.unreadDot} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))
           )}
         </ScrollView>
-
-        {/* Clear All Button */}
-        {notifications.length > 0 && (
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.clearButton} onPress={handleClearAll}>
-              <Text style={styles.clearButtonText}>Clear All Notifications</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </LinearGradient>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EFEFEF',
+    backgroundColor: '#FFFFFF',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 4,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: Colors.white,
+    fontWeight: '700',
+    color: '#000000',
+    letterSpacing: -0.3,
   },
-  notificationsList: {
+  clearText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  list: {
     flex: 1,
   },
-  notificationsContent: {
-    padding: 16,
+  listContent: {
+    paddingBottom: 40,
   },
-  notificationItem: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    position: 'relative',
+  sectionBlock: {
+    marginTop: 10,
   },
-  notificationIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  notificationEmoji: {
-    fontSize: 24,
-  },
-  notificationContent: {
-    flex: 1,
-  },
-  notificationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  notificationTitle: {
+  sectionHeader: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.white,
-    flex: 1,
+    color: '#000000',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    letterSpacing: -0.2,
   },
-  iconBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 214, 10, 0.15)',
+  notificationRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
   },
-  notificationDescription: {
+  avatarWrapper: {
+    marginRight: 14,
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EFEFEF',
+  },
+  textColumn: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  inlineText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 6,
-    lineHeight: 20,
+    lineHeight: 18,
+    color: '#262626',
   },
-  notificationTime: {
-    fontSize: 12,
-    color: Colors.secondary,
+  titleText: {
     fontWeight: '600',
+    color: '#000000',
+  },
+  descText: {
+    fontWeight: '400',
+    color: '#262626',
+  },
+  timeText: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#8E8E93',
   },
   unreadDot: {
-    position: 'absolute',
-    top: 20,
-    right: 16,
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.secondary,
-  },
-  footer: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  clearButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  clearButtonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '700',
+    backgroundColor: '#0095F6', // Instagram signature blue unread dot
+    marginLeft: 6,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: 100,
+    paddingHorizontal: 36,
   },
-  emptyText: {
-    fontSize: 18,
+  emptyIconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 2,
+    borderColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
     fontWeight: '700',
-    color: Colors.white,
+    color: '#000000',
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#8E8E93',
     textAlign: 'center',
-    paddingHorizontal: 40,
+    lineHeight: 20,
   },
 });
-
