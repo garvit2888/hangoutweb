@@ -105,19 +105,25 @@ export const useGroupStore = create<GroupState>()(
       }),
       
       leaveGroup: (groupId, userId) => set((state) => {
-        const groups = state.groups.map(group => {
-          if (group.id === groupId) {
-            return {
-              ...group,
-              members: group.members.filter(member => member.id !== userId),
-            };
-          }
-          return group;
-        });
-        
+        const updateMembers = (list: Group[]) =>
+          (list || []).map(group => {
+            if (group.id === groupId) {
+              return {
+                ...group,
+                members: group.members.filter(member => member.id !== userId),
+              };
+            }
+            return group;
+          });
+
         const activeMap = { ...(state.currentUserActiveGroupId || {}) };
         if (activeMap[userId] === groupId) activeMap[userId] = null;
-        return { groups, myGroups: state.myGroups.filter(group => group.id !== groupId), currentUserActiveGroupId: activeMap };
+        return {
+          groups: updateMembers(state.groups),
+          activeGroups: updateMembers(state.activeGroups),
+          myGroups: state.myGroups.filter(group => group.id !== groupId),
+          currentUserActiveGroupId: activeMap,
+        };
       }),
 
       stopActivity: (groupId, creatorId) => set((state) => {

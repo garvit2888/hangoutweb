@@ -146,19 +146,14 @@ export const subscribeToActivities = (callback: (activities: Group[]) => void): 
 
     const activitiesRef = collection(db, ACTIVITIES_COLLECTION);
     let lastUpdateTime = 0;
-    const THROTTLE_MS = 1000; // Throttle updates to max once per second
+    let pendingTimeout: any = null;
+    const THROTTLE_MS = 500; // Throttle rapid updates to max 500ms while guaranteeing delivery
 
-    const unsubscribe = onSnapshot(activitiesRef, (snapshot) => {
-      const now = Date.now();
-      if (now - lastUpdateTime < THROTTLE_MS) {
-        return;
-      }
-      lastUpdateTime = now;
-
+    const processSnapshot = (snapshot: any) => {
       const activities: Group[] = [];
       const currentTime = new Date();
 
-      snapshot.forEach((doc) => {
+      snapshot.forEach((doc: any) => {
         const data = doc.data() as Group;
 
         // Filter out expired activities (don't delete automatically to prevent loops)
@@ -173,11 +168,35 @@ export const subscribeToActivities = (callback: (activities: Group[]) => void): 
       });
 
       callback(activities);
+    };
+
+    const unsubscribe = onSnapshot(activitiesRef, (snapshot) => {
+      const now = Date.now();
+      if (now - lastUpdateTime < THROTTLE_MS) {
+        if (pendingTimeout) clearTimeout(pendingTimeout);
+        pendingTimeout = setTimeout(() => {
+          lastUpdateTime = Date.now();
+          processSnapshot(snapshot);
+        }, THROTTLE_MS);
+        return;
+      }
+
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        pendingTimeout = null;
+      }
+      lastUpdateTime = now;
+      processSnapshot(snapshot);
     }, (error) => {
       console.error('❌ Error in activity subscription:', error);
     });
 
-    return unsubscribe;
+    return () => {
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+      }
+      unsubscribe();
+    };
   } catch (error) {
     console.error('❌ Error subscribing to activities:', error);
     return () => { };

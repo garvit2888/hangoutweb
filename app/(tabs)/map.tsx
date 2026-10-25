@@ -691,13 +691,63 @@ export default function MapTab() {
   const handleLeaveActivity = () => {
     if (!selectedActivity) return;
 
-    const isCreator = selectedActivity.createdBy === currentUserId;
+    const activityToLeave = selectedActivity;
+    const isCreator = activityToLeave.createdBy === currentUserId;
     const title = isCreator ? 'Stop Activity' : 'Leave Activity';
     const message = isCreator
       ? 'Are you sure you want to stop this activity? It will be removed from the map and you can create a new one.'
       : 'Are you sure you want to leave this activity?';
     const buttonText = isCreator ? 'Stop' : 'Leave';
     const successMessage = isCreator ? 'Activity stopped successfully. You can now create a new activity!' : 'You have left the activity';
+
+    const executeAction = async () => {
+      try {
+        if (isCreator) {
+          // Creator stops the activity - remove it from Firestore and local
+          await deleteActivity(activityToLeave.id);
+          console.log('🛑 Creator stopped activity in Firestore:', activityToLeave.name);
+
+          const { stopActivity } = useGroupStore.getState();
+          stopActivity(activityToLeave.id, currentUserId);
+        } else {
+          // Member leaves - remove from Firestore and local
+          await leaveActivityFirestore(activityToLeave.id, currentUserId);
+          console.log('👋 Member left activity in Firestore:', activityToLeave.name);
+
+          const { leaveGroup } = useGroupStore.getState();
+          leaveGroup(activityToLeave.id, currentUserId);
+        }
+
+        // Close details modal and clear selection
+        setShowDetails(false);
+        setSelectedActivity(null);
+
+        // Immediately update activeGroups to remove the activity from the map & list
+        const remaining = useGroupStore.getState().activeGroups.filter(g => g.id !== activityToLeave.id);
+        setActiveGroups(remaining);
+
+        if (Platform.OS === 'web') {
+          window.alert(successMessage);
+        } else {
+          Alert.alert(title, successMessage);
+        }
+      } catch (error: any) {
+        console.error('❌ Error leaving/stopping activity:', error);
+        if (Platform.OS === 'web') {
+          window.alert(`Error: ${error?.message || 'Failed to perform action. Please try again.'}`);
+        } else {
+          Alert.alert('Error', 'Failed to perform action. Please try again.');
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`${title}\n\n${message}`);
+      if (confirmed) {
+        executeAction();
+      }
+      return;
+    }
 
     Alert.alert(
       title,
@@ -707,30 +757,7 @@ export default function MapTab() {
         {
           text: buttonText,
           style: 'destructive',
-          onPress: async () => {
-            try {
-              if (isCreator) {
-                // Creator stops the activity - remove it from Firestore and local
-                await deleteActivity(selectedActivity.id);
-                console.log('🛑 Creator stopped activity in Firestore:', selectedActivity.name);
-
-                const { stopActivity } = useGroupStore.getState();
-                stopActivity(selectedActivity.id, currentUserId);
-              } else {
-                // Member leaves - remove from Firestore and local
-                await leaveActivityFirestore(selectedActivity.id, currentUserId);
-                console.log('👋 Member left activity in Firestore:', selectedActivity.name);
-
-                const { leaveGroup } = useGroupStore.getState();
-                leaveGroup(selectedActivity.id, currentUserId);
-              }
-              setShowDetails(false);
-              Alert.alert(title, successMessage);
-            } catch (error) {
-              console.error('❌ Error leaving/stopping activity:', error);
-              Alert.alert('Error', 'Failed to perform action. Please try again.');
-            }
-          },
+          onPress: executeAction,
         },
       ]
     );
